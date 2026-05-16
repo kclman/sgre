@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SGRE 12kW 雲端戰情室</title>
+    
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    
+    <style>
+        /* =========================================================
+           🎨 這裡放你原本寫好的超華麗 CSS 樣式
+           ========================================================= */
+        body { font-family: -apple-system, sans-serif; background: #0f172a; color: white; margin: 0; padding: 20px; text-align: center; }
+        .dashboard { display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; margin-top: 20px; }
+        .card { background: #1e293b; padding: 20px; border-radius: 15px; width: 150px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        .value { font-size: 1.8em; color: #38bdf8; font-weight: bold; margin-top: 10px; }
+        .header-bar { background: rgba(255,255,255,0.05); padding: 10px 20px; border-radius: 30px; display: inline-block; margin-bottom: 20px; font-size: 0.9em;}
+        .btn { background: #333; color: #ccc; border: none; padding: 8px 15px; border-radius: 20px; cursor: pointer; margin-top: 30px; font-size: 0.8em; }
+        .btn:hover { background: #ef4444; color: white; }
+    </style>
+</head>
+<body>
+
+    <div class="header-bar">
+        狀態: <span id="status_indicator" style="color: #f59e0b; font-weight: bold;">連線中...</span> | 
+        綁定設備: <span id="mac_display" style="color: #cbd5e1;">---</span>
+    </div>
+
+    <div class="dashboard">
+        <div class="card">
+            <div style="color: #94a3b8; font-size: 0.9em;">☀️ 太陽能發電</div>
+            <div class="value" id="val_pv_w">0 W</div>
+        </div>
+        <div class="card">
+            <div style="color: #94a3b8; font-size: 0.9em;">🔋 電池 SOC</div>
+            <div class="value" id="val_batt_soc">0 %</div>
+        </div>
+        <div class="card">
+            <div style="color: #94a3b8; font-size: 0.9em;">🏠 負載功率</div>
+            <div class="value" id="val_load_w">0 W</div>
+        </div>
+    </div>
+
+    <button class="btn" onclick="resetMAC()">🔄 登出並綁定其他設備</button>
+
+    <script>
+        // =========================================================
+        // ⚙️ 雲端通訊與畫面更新引擎
+        // =========================================================
+        let mqttClient = null;
+        let deviceMac = "";
+
+        // 1. 系統啟動：檢查記憶中的 MAC 碼
+        function initApp() {
+            deviceMac = localStorage.getItem('sgre_device_id');
+            
+            // 如果沒有記憶，彈出視窗請客戶輸入
+            if (!deviceMac) {
+                deviceMac = prompt("歡迎使用 SGRE 雲端系統！\n請輸入您的 12kW 設備綁定碼 (MAC 地址):", "");
+                if (deviceMac) {
+                    // 自動清理輸入的冒號與空格，轉大寫
+                    deviceMac = deviceMac.toUpperCase().trim().replace(/:/g, "");
+                    localStorage.setItem('sgre_device_id', deviceMac);
+                } else {
+                    document.getElementById('status_indicator').innerText = "未綁定設備";
+                    document.getElementById('status_indicator').style.color = "#ef4444";
+                    return; // 終止執行
+                }
+            }
+            
+            document.getElementById('mac_display').innerText = deviceMac;
+            startCloudMQTT();
+        }
+
+        // 2. 啟動 HiveMQ 雲端連線
+        function startCloudMQTT() {
+            document.getElementById('status_indicator').innerText = "☁️ 尋找雲端節點...";
+            document.getElementById('status_indicator').style.color = "#3b82f6";
+
+            // 使用 HiveMQ 免費的 WebSockets 伺服器
+            const brokerUrl = 'wss://broker.hivemq.com:8443/mqtt';
+            const options = {
+                clientId: 'sgre_app_' + Math.random().toString(16).substring(2, 10),
+                keepalive: 60,
+                clean: true
+            };
+
+            mqttClient = mqtt.connect(brokerUrl, options);
+
+            mqttClient.on('connect', () => {
+                document.getElementById('status_indicator').innerText = "🟢 雲端直連成功";
+                document.getElementById('status_indicator').style.color = "#10b981";
+                
+                // 🌟 關鍵：根據客戶輸入的 MAC 訂閱專屬資料通道
+                const topic = `sgre/device/${deviceMac}/data`;
+                mqttClient.subscribe(topic);
+                console.log("已成功訂閱雲端通道:", topic);
+            });
+
+            // 3. 接收資料並觸發畫面更新
+            mqttClient.on('message', (topic, message) => {
+                try {
+                    const data = JSON.parse(message.toString());
+                    updateUI(data);
+                } catch (e) {
+                    console.error("資料解析錯誤", e);
+                }
+            });
+
+            mqttClient.on('error', (err) => {
+                console.error("MQTT 連線異常:", err);
+                document.getElementById('status_indicator').innerText = "🔴 連線中斷";
+                document.getElementById('status_indicator').style.color = "#ef4444";
+            });
+        }
+
+        // 4. UI 渲染邏輯 (請替換成你原本那套有動畫與顏色判斷的 updateUI)
+        function updateUI(data) {
+            // 這裡的 key (如 pv_w) 必須與你 ESP32 sgre.yaml 裡面打包的 JSON 欄位名稱一致
+            if(data.pv_w !== undefined) document.getElementById('val_pv_w').innerText = data.pv_w + " W";
+            if(data.batt_soc !== undefined) document.getElementById('val_batt_soc').innerText = data.batt_soc + " %";
+            if(data.load_w !== undefined) document.getElementById('val_load_w').innerText = data.load_w + " W";
+        }
+
+        // 5. 解除綁定功能
+        function resetMAC() {
+            if(confirm("確定要登出並綁定其他設備嗎？")) {
+                localStorage.removeItem('sgre_device_id');
+                if(mqttClient) mqttClient.end();
+                location.reload(); // 重新整理網頁，觸發 initApp 重新詢問
+            }
+        }
+
+        // 啟動點：當網頁結構載入完畢後，執行 initApp
+        window.onload = initApp;
+    </script>
+</body>
+</html>
