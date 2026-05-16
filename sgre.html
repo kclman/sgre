@@ -79,7 +79,7 @@
             document.getElementById('status_indicator').style.color = "#3b82f6";
 
             // 使用 HiveMQ 免費的 WebSockets 伺服器
-            const brokerUrl = 'wss://broker.hivemq.com:8443/mqtt';
+            const brokerUrl = 'wss://broker.hivemq.com:8884/mqtt';
             const options = {
                 clientId: 'sgre_app_' + Math.random().toString(16).substring(2, 10),
                 keepalive: 60,
