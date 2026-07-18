@@ -1,12 +1,13 @@
 {
-  "version": "V2.2.2",
-  "date": "2026-06-24",
-  "title": "API 重啟保護修正版",
+  "version": "V2.2.3",
+  "date": "2026-07-18",
+  "title": "UI 傳輸加速與離線化",
   "firmware": "firmware.ota.bin",
   "changes": [
-    "修正 ESPHome Native API 無客戶端連線時，可能約 15 分鐘自動重啟的問題",
-    "加入 api.reboot_timeout: 0s，避免僅使用 Web UI / 手機 APP / HTTP API 時被預設機制重啟",
-    "保留 V2.2.1 原有功能與自動化相同值略過機制，未改動 Modbus 輪詢、/sensor、/api/live 與歷史圖表資料來源"
+    "手機版與桌面版介面改用預先壓縮的靜態 gzip，大幅降低傳輸量並提升載入速度",
+    "加入 ETag／304 快取與 4KB 分塊傳輸，減少重複下載及固定等待時間",
+    "Tailwind CSS 改為離線內建並固定深色模式相容性，改善內外網與網路不穩定環境的顯示一致性",
+    "微調桌面版深藍黑配色；未改動 Modbus、寫入驗證、自動化與歷史線圖核心"
   ],
   "important": []
 }
